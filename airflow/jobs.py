@@ -805,9 +805,11 @@ class SchedulerJob(BaseJob):
                 next_start = dag.following_schedule(now)
                 last_start = dag.previous_schedule(now)
                 if next_start <= now:
-                    new_start = last_start
+                    self.log.debug("next_start less than or equal to now")
+                    new_start = next_start
                 else:
-                    new_start = dag.previous_schedule(last_start)
+                    self.log.debug("next_start more than now")
+                    new_start = last_start
 
                 if dag.start_date:
                     if new_start >= dag.start_date:
@@ -818,7 +820,9 @@ class SchedulerJob(BaseJob):
             next_run_date = None
             if not last_scheduled_run:
                 # First run
+                self.log.debug("First run")
                 task_start_dates = [t.start_date for t in dag.tasks]
+                self.log.debug("First run task_start_dates: " + str(task_start_dates))
                 if task_start_dates:
                     next_run_date = dag.normalize_schedule(min(task_start_dates))
                     self.log.debug(
@@ -827,6 +831,9 @@ class SchedulerJob(BaseJob):
                     )
             else:
                 next_run_date = dag.following_schedule(last_scheduled_run)
+                self.log.debug("Not First run next_run_date: " + str(next_run_date))
+
+
 
             # make sure backfills are also considered
             last_run = dag.get_last_dagrun(session=session)
@@ -846,9 +853,13 @@ class SchedulerJob(BaseJob):
                     dag.start_date, next_run_date
                 )
 
+            start_date_override = None
+            if not last_scheduled_run:
+                start_date_override =
+
             # don't ever schedule in the future
-            if next_run_date > datetime.utcnow():
-                return
+            #if next_run_date > datetime.utcnow():
+            #    return
 
             # this structure is necessary to avoid a TypeError from concatenating
             # NoneType
@@ -871,6 +882,7 @@ class SchedulerJob(BaseJob):
                 return
 
             if next_run_date and period_end and period_end <= datetime.utcnow():
+                self.log.debug("Create dagrun, execution_date=" + str(next_run_date) + ", start_date=" + str(datetime.utcnow()))
                 next_run = dag.create_dagrun(
                     run_id=DagRun.ID_PREFIX + next_run_date.isoformat(),
                     execution_date=next_run_date,
