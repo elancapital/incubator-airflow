@@ -201,3 +201,10 @@ Currently **officially** using Airflow:
 * [Chat](https://gitter.im/apache/incubator-airflow)
 * [Apache Airflow Incubation Status](http://incubator.apache.org/projects/airflow.html)
 * [More](https://cwiki.apache.org/confluence/display/AIRFLOW/Airflow+Links)
+
+
+docker build --tag elancapital/incubator-airflow .
+
+docker run elancapital/incubator-airflow
+
+Debug: docker run -t -i --entrypoint "/bin/bash" elancapital/incubator-airflow
