@@ -33,7 +33,9 @@ from airflow import configuration
 
 
 def create_app(config=None, testing=False):
-    app = Flask(__name__)
+    root_path = configuration.get('webserver', 'ROOT_PATH')
+
+    app = Flask(__name__, static_url_path=root_path + '/static')
     app.secret_key = configuration.get('webserver', 'SECRET_KEY')
     app.config['LOGIN_DISABLED'] = not configuration.getboolean('webserver', 'AUTHENTICATE')
 
@@ -51,7 +53,7 @@ def create_app(config=None, testing=False):
     cache = Cache(
         app=app, config={'CACHE_TYPE': 'filesystem', 'CACHE_DIR': '/tmp'})
 
-    app.register_blueprint(routes)
+    app.register_blueprint(routes, url_prefix=root_path)
 
     configure_logging()
 
@@ -60,8 +62,8 @@ def create_app(config=None, testing=False):
 
         admin = Admin(
             app, name='Airflow',
-            static_url_path='/admin',
-            index_view=views.HomeView(endpoint='', url='/admin', name="DAGs"),
+            static_url_path=root_path + '/admin',
+            index_view=views.HomeView(endpoint='', url=root_path + '/admin', name="DAGs"),
             template_mode='bootstrap3',
         )
         av = admin.add_view
@@ -138,7 +140,7 @@ def create_app(config=None, testing=False):
                 import importlib
                 importlib.reload(e)
 
-        app.register_blueprint(e.api_experimental, url_prefix='/api/experimental')
+        app.register_blueprint(e.api_experimental, url_prefix=root_path + '/api/experimental')
 
         @app.context_processor
         def jinja_globals():
