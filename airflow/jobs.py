@@ -797,13 +797,49 @@ class SchedulerJob(BaseJob):
                 return None
 
             # don't do scheduler catchup for dag's that don't have dag.catchup = True
-            if not dag.catchup:
+            if not (dag.catchup or dag.schedule_interval == '@once'):
                 # The logic is that we move start_date up until
                 # one period before, so that datetime.utcnow() is AFTER
                 # the period end, and the job can be created...
                 now = datetime.utcnow()
                 next_start = dag.following_schedule(now)
                 last_start = dag.previous_schedule(now)
+                self.log.debug("now: " + str(now))
+                self.log.debug("next_start: " + str(next_start))
+                self.log.debug("last_start: " + str(last_start))
+
+                # OPTION 1
+                # Use this to get all the right times for the first run
+                # if not last_scheduled_run:
+                #     self.log.debug("First run, initial new_start logic")
+                #     # First run, start next one
+                #     if next_start <= now:
+                #         self.log.debug("next_start less than or equal to now")
+                #         new_start = next_start
+                #     else:
+                #         self.log.debug("next_start more than now")
+                #         new_start = last_start
+                # else:
+                #     self.log.debug("Not first run, alternative new_start logic")
+                #     if next_start <= now:
+                #         self.log.debug("next_start less than or equal to now")
+                #         new_start = last_start
+                #     else:
+                #         self.log.debug("next_start more than now")
+                #         new_start = dag.previous_schedule(last_start)
+
+                # OPTION 2A
+                # This will have execution date as the time when the job starts
+                # if next_start <= now:
+                #     self.log.debug("next_start less than or equal to now")
+                #     new_start = last_start
+                # else:
+                #     self.log.debug("next_start more than now")
+                #     new_start = dag.previous_schedule(last_start)
+
+                # OPTION 2B
+                # This will have execution date as the time when the job ends
+                # First run, start next one
                 if next_start <= now:
                     self.log.debug("next_start less than or equal to now")
                     new_start = next_start
@@ -816,6 +852,9 @@ class SchedulerJob(BaseJob):
                         dag.start_date = new_start
                 else:
                     dag.start_date = new_start
+
+                self.log.debug("new_start: %s", new_start)
+                self.log.debug("dag.start_date: %s", dag.start_date)
 
             next_run_date = None
             if not last_scheduled_run:
@@ -830,6 +869,7 @@ class SchedulerJob(BaseJob):
                         next_run_date
                     )
             else:
+                self.log.debug("last_scheduled_run: %s", last_scheduled_run)
                 next_run_date = dag.following_schedule(last_scheduled_run)
                 self.log.debug("Not First run next_run_date: " + str(next_run_date))
 
@@ -854,8 +894,10 @@ class SchedulerJob(BaseJob):
                 )
 
             start_date_override = None
-            if not last_scheduled_run:
-                start_date_override =
+            if not last_scheduled_run and not (dag.catchup or dag.schedule_interval == '@once'):
+                # OPTION 2A and 2B
+                start_date_override = dag.following_schedule(next_run_date)
+                self.log.debug("start_date_override: %s", start_date_override)
 
             # don't ever schedule in the future
             #if next_run_date > datetime.utcnow():
@@ -867,29 +909,71 @@ class SchedulerJob(BaseJob):
                 period_end = next_run_date
             elif next_run_date:
                 period_end = dag.following_schedule(next_run_date)
+            self.log.debug("period_end: %s", period_end)
+
+            # Need this if you have initially shifted the dates
+            # OPTION 1
+            # if not last_scheduled_run and not dag.catchup:
+            #     period_end = next_run_date
+
+            # OPTION 2B
+            if not dag.catchup:
+                period_end = next_run_date
 
             # Don't schedule a dag beyond its end_date (as specified by the dag param)
             if next_run_date and dag.end_date and next_run_date > dag.end_date:
+                self.log.debug("next_run_date: %s. dag.end_date: %s", next_run_date, dag.end_date)
                 return
+            self.log.debug("Scheduling dag as not beyond its end_date")
 
             # Don't schedule a dag beyond its end_date (as specified by the task params)
             # Get the min task end date, which may come from the dag.default_args
             min_task_end_date = []
             task_end_dates = [t.end_date for t in dag.tasks if t.end_date]
+            self.log.debug("task_end_dates: " + str(task_end_dates))
             if task_end_dates:
                 min_task_end_date = min(task_end_dates)
             if next_run_date and min_task_end_date and next_run_date > min_task_end_date:
+                self.log.debug("next_run_date: %s. min_task_end_date: %s", next_run_date, min_task_end_date)
                 return
+            self.log.debug("Scheduling dag as not beyond its end_date as specified by task params")
 
+            self.log.debug("next_run_date: %s", next_run_date)
+            self.log.debug("period_end: %s", period_end)
+            self.log.debug("datetime.utcnow(): %s", datetime.utcnow())
             if next_run_date and period_end and period_end <= datetime.utcnow():
+            #if next_run_date and period_end:
                 self.log.debug("Create dagrun, execution_date=" + str(next_run_date) + ", start_date=" + str(datetime.utcnow()))
-                next_run = dag.create_dagrun(
-                    run_id=DagRun.ID_PREFIX + next_run_date.isoformat(),
-                    execution_date=next_run_date,
-                    start_date=datetime.utcnow(),
-                    state=State.RUNNING,
-                    external_trigger=False
-                )
+                if start_date_override:
+                    self.log.debug("start_date_override: %s", start_date_override)
+
+                    # OPTION 1
+                    # This will run the first run instantly, I can't make it not do it :-(
+                    # next_run = dag.create_dagrun(
+                    #     run_id=DagRun.ID_PREFIX + next_run_date.isoformat(),
+                    #     execution_date=next_run_date,
+                    #     start_date=start_date_override,
+                    #     state=State.RUNNING,
+                    #     external_trigger=False
+                    # )
+
+                    # OPTION 2A and 2B
+                    # This will create a run but will leave it in a scheduled state
+                    next_run = dag.create_dagrun(
+                        run_id=DagRun.ID_PREFIX + next_run_date.isoformat(),
+                        execution_date=next_run_date,
+                        start_date=start_date_override,
+                        state=State.SCHEDULED,
+                        external_trigger=False
+                    )
+                else:
+                    next_run = dag.create_dagrun(
+                        run_id=DagRun.ID_PREFIX + next_run_date.isoformat(),
+                        execution_date=next_run_date,
+                        start_date=datetime.utcnow(),
+                        state=State.RUNNING,
+                        external_trigger=False
+                    )
                 return next_run
 
     def _process_task_instances(self, dag, queue):
