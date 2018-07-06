@@ -237,6 +237,8 @@ def do_setup():
             'sqlalchemy>=0.9.8',
             'tabulate>=0.7.5, <0.8.0',
             'thrift>=0.9.2',
+            'tzlocal>=1.4',
+            'werkzeug>=0.14.1, <0.15.0',
             'zope.deprecation>=4.0, <5.0',
         ],
         extras_require={

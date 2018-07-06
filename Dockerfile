@@ -79,6 +79,9 @@ COPY UPDATING.md ${INCUBATOR_AIRFLOW_HOME}/
 RUN pip install tox
 RUN pip install codecov
 
+# Setup required for dist
+COPY .pypirc /root/
+
 WORKDIR ${INCUBATOR_AIRFLOW_HOME}
 # The -e means editable when you import it in to another project,
 # so this is probably not needed here
@@ -86,5 +89,5 @@ RUN pip install -e .[all]
 
 #ENTRYPOINT ["python", "setup.py", "install"]
 #ENTRYPOINT ["python", "setup.py", "develop"]
-ENTRYPOINT ["python","setup.py","sdist"]
+ENTRYPOINT ["python","setup.py","sdist","upload","-v","-r","elanpypi"]
 #ENTRYPOINT ["./run_unit_tests.sh"]
