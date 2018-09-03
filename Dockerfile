@@ -43,7 +43,7 @@ RUN set -ex \
 
 #RUN apt-get update -yqq
 #RUN apt-get install -y python3-dev
-RUN apt-get install -y libmysqlclient-dev
+RUN apt-get install -y default-libmysqlclient-dev
 
 COPY .github ${INCUBATOR_AIRFLOW_HOME}/.github/
 COPY airflow ${INCUBATOR_AIRFLOW_HOME}/airflow/
